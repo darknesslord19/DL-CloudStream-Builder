@@ -18,7 +18,7 @@ Mobil HTML paneli + sınırlı site analiz motoru + Kotlin provider üreticisi +
 4. `index.html` dosyasını tarayıcıda aç. Owner/repo/branch/workflow değerlerini kontrol et.
 5. Site adresini, içerik türünü ve eklenti kimliğini gir. Yalnızca analiz etmeye yetkili olduğun kaynak için onayı işaretle.
 6. “Analizi ve derlemeyi başlat” düğmesine bas. GitHub Actions çalışmasının bitmesini bekle.
-7. Actions → ilgili çalışma → Artifacts bölümünden `dl-cloudstream-builder-*` paketini indir. Başarılı derlemede `.cs3` dosyası ve doğrulama raporu bulunur.
+7. Actions → ilgili çalışma → Artifacts bölümünden `dl-cloudstream-builder-*` paketini indir. Başarılı derlemede `.cs3` dosyası ve doğrulama raporu bulunur. Derleme başarısız olsa bile artifact adımı günlükleri (`gradle-build.log`, `gradle-tasks.log`) toplamaya çalışır; hatanın ilk `What went wrong` bölümünü bu dosyalarda görebilirsin.
 
 ## GitHub token güvenliği
 
