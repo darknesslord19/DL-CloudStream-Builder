@@ -1,0 +1,114 @@
+name: Analyze site and build CS3
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: 'Authorized site URL'
+        required: true
+        type: string
+      plugin_name:
+        description: 'Plugin display name'
+        required: true
+        default: 'GeneratedProvider'
+        type: string
+      package_name:
+        description: 'Kotlin package name'
+        required: true
+        default: 'com.darkneslord.generated'
+        type: string
+      content_type:
+        description: 'Content type'
+        required: true
+        type: choice
+        options: [movie_tv, movie, tv, anime, live]
+      max_pages:
+        description: 'Maximum same-origin pages (1-50)'
+        required: true
+        default: '25'
+        type: string
+      timeout_seconds:
+        description: 'Per-request timeout (3-25 seconds)'
+        required: true
+        default: '15'
+        type: string
+      seed_urls:
+        description: 'Optional extra seed URLs, one per line'
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  analyze-generate-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Install analyzer dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Analyze authorized website
+        env:
+          SITE_URL: ${{ inputs.site_url }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+          SEED_URLS: ${{ inputs.seed_urls }}
+        run: |
+          python engine/site_engine.py \
+            --url "$SITE_URL" \
+            --max-pages "$MAX_PAGES" \
+            --timeout "$TIMEOUT_SECONDS" \
+            --seeds "$SEED_URLS" \
+            --out build/analysis
+      - name: Generate Kotlin CloudStream provider
+        env:
+          SITE_URL: ${{ inputs.site_url }}
+          PLUGIN_NAME: ${{ inputs.plugin_name }}
+          PACKAGE_NAME: ${{ inputs.package_name }}
+          CONTENT_TYPE: ${{ inputs.content_type }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python engine/generate_provider.py --analysis build/analysis/site-analysis.json --out GeneratedProvider/src/main/kotlin
+      - name: Validate generated source
+        run: python -m unittest discover -s tests -v
+      - name: Build .cs3 and plugin manifest
+        run: gradle make makePluginsJson --no-daemon --stacktrace
+      - name: Verify CS3 archive integrity
+        run: python engine/verify_cs3.py --root . --out build/verification.json
+      - name: Collect outputs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build/artifacts
+          find . -type f -name '*.cs3' -not -path './.git/*' -exec cp {} build/artifacts/ \; || true
+          find . -type f -name 'plugins.json' -not -path './.git/*' -exec cp --parents {} build/artifacts/ \; || true
+          cp README.md build/artifacts/ 2>/dev/null || true
+          printf 'GitHub run: %s\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > build/artifacts/BUILD_STATUS.txt
+          if [ -f build/verification.json ]; then cat build/verification.json >> build/artifacts/BUILD_STATUS.txt; fi
+          cd build && zip -qr ../DL-CloudStream-Builder-Reports.zip analysis verification.json artifacts 2>/dev/null || true
+      - name: Upload reports and CS3 files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dl-cloudstream-builder-${{ github.run_number }}
+          path: |
+            DL-CloudStream-Builder-Reports.zip
+            **/build/**/*.cs3
+            **/build/**/plugins.json
+            build/analysis/**
+            build/verification.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,11 @@
+{
+  "plugin_name": "TavsiyeFilmizle",
+  "package_name": "com.darkneslord.tavsiyefilmizle",
+  "content_type": "movie_tv",
+  "site_url": "https://example.org",
+  "max_pages": 25,
+  "timeout_seconds": 15,
+  "seed_urls": [
+    "https://example.org/category/"
+  ]
+}
